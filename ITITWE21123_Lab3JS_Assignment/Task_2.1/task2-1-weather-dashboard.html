@@ -1,0 +1,248 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <title>Weather Dashboard</title>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+        
+        body {
+            font-family: Arial, sans-serif;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            min-height: 100vh;
+            padding: 20px;
+        }
+        
+        .container {
+            max-width: 900px;
+            margin: 0 auto;
+        }
+        
+        .search-box {
+            background: white;
+            padding: 20px;
+            border-radius: 10px;
+            margin-bottom: 20px;
+        }
+        
+        .search-box input {
+            width: 70%;
+            padding: 12px;
+            border: 2px solid #ddd;
+            border-radius: 4px;
+            font-size: 16px;
+        }
+        
+        .search-box button {
+            width: 28%;
+            padding: 12px;
+            background: #667eea;
+            color: white;
+            border: none;
+            border-radius: 4px;
+            cursor: pointer;
+            font-size: 16px;
+            margin-left: 2%;
+        }
+        
+        .weather-card {
+            background: white;
+            padding: 30px;
+            border-radius: 10px;
+            box-shadow: 0 10px 30px rgba(0,0,0,0.2);
+            margin-bottom: 20px;
+        }
+        
+        .current-weather {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+        }
+        
+        .temp-display {
+            font-size: 60px;
+            font-weight: bold;
+        }
+        
+        .forecast-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(150px, 1fr));
+            gap: 15px;
+            margin-top: 20px;
+        }
+        
+        .forecast-item {
+            background: #f8f9fa;
+            padding: 15px;
+            border-radius: 8px;
+            text-align: center;
+        }
+        
+        .loading {
+            text-align: center;
+            padding: 40px;
+            font-size: 18px;
+            color: white;
+        }
+        
+        .error {
+            background: #dc3545;
+            color: white;
+            padding: 15px;
+            border-radius: 8px;
+            margin-bottom: 20px;
+        }
+        
+        .recent-searches {
+            display: flex;
+            gap: 10px;
+            margin-top: 10px;
+            flex-wrap: wrap;
+        }
+        
+        .recent-city {
+            padding: 5px 15px;
+            background: #e9ecef;
+            border-radius: 20px;
+            cursor: pointer;
+            font-size: 14px;
+        }
+        
+        .recent-city:hover {
+            background: #dee2e6;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h1 style="color: white; text-align: center; margin-bottom: 30px;">
+            Weather Dashboard
+        </h1>
+        
+        <div class="search-box">
+            <input type="text" id="cityInput" placeholder="Enter city name..." 
+                   onkeypress="if(event.key==='Enter') searchWeather()">
+            <button onclick="searchWeather()">Search</button>
+            <div class="recent-searches" id="recentSearches"></div>
+        </div>
+        
+        <div id="errorMessage"></div>
+        <div id="weatherDisplay"></div>
+        <div id="forecastDisplay"></div>
+    </div>
+
+    <script>
+        const API_KEY = '4cb36c41f01d363f828a41c1caab320d'; 
+
+
+        async function fetchWeather(city) {
+            try {
+                const res = await fetch(`https://api.openweathermap.org/data/2.5/forecast?q=${city}&appid=${API_KEY}&units=metric`);
+                if (!res.ok) throw new Error("City not found");
+                return await res.json();
+            } catch (err) {
+                showError(err.message);
+            }
+        }
+        
+        async function fetchForecast(city) {
+            try {
+                const res = await fetch(`https://api.openweathermap.org/data/2.5/forecast?q=${city}&appid=${API_KEY}&units=metric`);
+                if (!res.ok) throw new Error("Forecast not found");
+                return await res.json();
+            } catch (err) {
+                showError(err.message);
+            }
+        }
+        
+        function displayWeather(data) {
+            const icon = getWeatherIcon(data.weather[0].main);
+            document.getElementById("weatherDisplay").innerHTML = `
+                <div class="weather-card">
+                    <div class="current-weather">
+                        <div>
+                            <h2>${data.name}, ${data.sys.country}</h2>
+                            <p>${data.weather[0].description}</p>
+                        </div>
+                        <div class="temp-display">${Math.round(data.main.temp)}°C ${icon}</div>
+                    </div>
+                    <p>Humidity: ${data.main.humidity}% | Wind: ${data.wind.speed} km/h</p>
+                </div>`;
+        }
+        
+        function displayForecast(data) {
+            const noonForecasts = data.list.filter(item => item.dt_txt.includes("12:00:00"));
+            let html = `<div class="weather-card">
+                <h2>5-Day Forecast</h2>
+                <div class="forecast-grid">`;
+            noonForecasts.forEach(item => {
+                const date = new Date(item.dt_txt).toLocaleDateString("en-US", { weekday: "short" });
+                const icon = getWeatherIcon(item.weather[0].main);
+                html += `<div class="forecast-item">
+                    <h4>${date}</h4>
+                    <div style="font-size:30px">${icon}</div>
+                    <p>${Math.round(item.main.temp)}°C</p>
+                </div>`;
+            });
+            html += "</div></div>";
+            document.getElementById("forecastDisplay").innerHTML = html;
+        }
+        
+        async function searchWeather() {
+            const city = document.getElementById("cityInput").value.trim();
+            if (!city) return showError("Please enter a city name.");
+            clearError();
+            document.getElementById("weatherDisplay").innerHTML = `<div class='loading'>Loading...</div>`;
+            try {
+                const weatherData = await fetchWeather(city);
+                const forecastData = await fetchForecast(city);
+                if (!weatherData || !forecastData) return;
+                displayWeather(weatherData);
+                displayForecast(forecastData);
+                saveRecentSearch(city);
+            } catch (err) {
+                showError(err.message);
+            }
+        }
+        
+        function getWeatherIcon(main) {
+            switch (main) {
+                case "Clear": return "☀️";
+                case "Clouds": return "☁️";
+                case "Rain": return "🌧️";
+                case "Snow": return "❄️";
+                default: return "🌡️";
+            }
+        }
+
+        function saveRecentSearch(city) {
+            let cities = JSON.parse(localStorage.getItem("recentCities")) || [];
+            cities = [city, ...cities.filter(c => c !== city)].slice(0, 5);
+            localStorage.setItem("recentCities", JSON.stringify(cities));
+            loadRecentSearches();
+        }
+
+        function loadRecentSearches() {
+            const cities = JSON.parse(localStorage.getItem("recentCities")) || [];
+            const container = document.getElementById("recentSearches");
+            container.innerHTML = cities
+                .map(c => `<div class="recent-city" onclick="document.getElementById('cityInput').value='${c}';searchWeather()">${c}</div>`)
+                .join("");
+        }
+        
+        function showError(message) {
+            document.getElementById("errorMessage").innerHTML = `<div class='error'>${message}</div>`;
+        }
+        
+        function clearError() {
+            document.getElementById("errorMessage").innerHTML = "";
+        }
+
+        loadRecentSearches();
+    </script>
+</body>
+</html>
